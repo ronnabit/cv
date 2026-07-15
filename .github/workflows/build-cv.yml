@@ -2,9 +2,52 @@ name: Compilar LaTeX
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'es*'
+      - 'en*'
 
 jobs:
+  validar-tag:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar que el tag venga de la rama correcta
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          COMMIT_SHA="${GITHUB_SHA}"
+
+          if [[ "$TAG_NAME" == es* ]]; then
+            RAMA_ESPERADA="main"
+          elif [[ "$TAG_NAME" == en* ]]; then
+            RAMA_ESPERADA="english"
+          else
+            echo "Tag no reconocido, se omite validación."
+            exit 0
+          fi
+
+          git fetch origin "$RAMA_ESPERADA"
+          if git merge-base --is-ancestor "$COMMIT_SHA" "origin/$RAMA_ESPERADA"; then
+            echo "✅ Tag '$TAG_NAME' válido: proviene de la rama '$RAMA_ESPERADA'."
+          else
+            echo "❌ Error: el tag '$TAG_NAME' debe crearse desde la rama '$RAMA_ESPERADA', pero no está en su historial."
+            echo "TAG_INVALIDO=true" >> "$GITHUB_ENV"
+            echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+      - name: Borrar tag inválido
+        if: failure() && env.TAG_INVALIDO == 'true'
+        run: |
+          echo "Borrando tag inválido '${TAG_NAME}' del repositorio remoto..."
+          git push origin --delete "refs/tags/${TAG_NAME}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -15,9 +58,11 @@ jobs:
         uses: xu-cheng/latex-action@v3
         with:
           root_file: resume.tex
+          latexmk_use_xelatex: true
 
-      - name: Subir PDF como artifact
-        uses: actions/upload-artifact@v4
+      - name: Crear release con el PDF
+        uses: softprops/action-gh-release@v2
         with:
-          name: pdf-compilado
-          path: cv.pdf
+          files: cv.pdf
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
