@@ -1,0 +1,23 @@
+name: Compilar LaTeX
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Compilar documento LaTeX
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: resume.tex
+
+      - name: Subir PDF como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-compilado
+          path: cv.pdf
