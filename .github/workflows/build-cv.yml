@@ -49,6 +49,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build:
+    needs: validar-tag
+    if: always() && (needs.validar-tag.result == 'success' || needs.validar-tag.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Clonar repositorio
